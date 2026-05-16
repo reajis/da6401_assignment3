@@ -569,6 +569,10 @@ def save_checkpoint(
         "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
         "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
         "model_config": model_config,
+        "src_vocab": getattr(model, "src_vocab", None),
+        "tgt_vocab": getattr(model, "tgt_vocab", None),
+        "src_itos": getattr(model, "src_itos", None),
+        "tgt_itos": getattr(model, "tgt_itos", None),
     }
 
     torch.save(checkpoint, path)
@@ -736,6 +740,11 @@ def run_training_experiment() -> None:
         d_ff=args.d_ff,
         dropout=args.dropout,
     ).to(device)
+
+    model.src_vocab = train_dataset.src_vocab
+    model.tgt_vocab = train_dataset.tgt_vocab
+    model.src_itos = train_dataset.src_itos
+    model.tgt_itos = train_dataset.tgt_itos
 
     optimizer = torch.optim.Adam(
         model.parameters(),

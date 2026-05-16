@@ -353,16 +353,36 @@ class Transformer(nn.Module):
 
     def __init__(
         self,
-        src_vocab_size: int,
-        tgt_vocab_size: int,
-        d_model: int = 512,
-        N: int = 6,
+        src_vocab_size: int = None,
+        tgt_vocab_size: int = None,
+        d_model: int = 256,
+        N: int = 3,
         num_heads: int = 8,
-        d_ff: int = 2048,
+        d_ff: int = 512,
         dropout: float = 0.1,
-        checkpoint_path: str = None,
+        checkpoint_path: str = "checkpoint.pt",
     ) -> None:
         super().__init__()
+
+        checkpoint = None
+
+        # If called as Transformer(), try loading checkpoint first.
+        if src_vocab_size is None or tgt_vocab_size is None:
+            if checkpoint_path is None:
+                raise ValueError(
+                    "src_vocab_size and tgt_vocab_size are required unless checkpoint_path is provided."
+                )
+
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            config = checkpoint["model_config"]
+
+            src_vocab_size = config["src_vocab_size"]
+            tgt_vocab_size = config["tgt_vocab_size"]
+            d_model = config["d_model"]
+            N = config["N"]
+            num_heads = config["num_heads"]
+            d_ff = config["d_ff"]
+            dropout = config["dropout"]
 
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
@@ -387,12 +407,24 @@ class Transformer(nn.Module):
 
         self._reset_parameters()
 
-        if checkpoint_path is not None:
-            state = torch.load(checkpoint_path, map_location="cpu")
-            if isinstance(state, dict) and "model_state_dict" in state:
-                self.load_state_dict(state["model_state_dict"])
-            else:
-                self.load_state_dict(state)
+        self.src_vocab = None
+        self.tgt_vocab = None
+        self.src_itos = None
+        self.tgt_itos = None
+
+        if checkpoint is None and checkpoint_path is not None:
+            try:
+                checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            except FileNotFoundError:
+                checkpoint = None
+
+        if checkpoint is not None:
+            self.load_state_dict(checkpoint["model_state_dict"])
+
+            self.src_vocab = checkpoint.get("src_vocab", None)
+            self.tgt_vocab = checkpoint.get("tgt_vocab", None)
+            self.src_itos = checkpoint.get("src_itos", None)
+            self.tgt_itos = checkpoint.get("tgt_itos", None)
 
     def _reset_parameters(self) -> None:
         """
@@ -444,12 +476,70 @@ class Transformer(nn.Module):
 
         return logits
 
+
     def infer(self, src_sentence: str) -> str:
         """
-        Placeholder convenience method.
-        Actual tokenization/vocab-based inference should usually be handled
-        in train.py or dataset.py, because this class does not know the vocabs.
+        Translate one German sentence to English using greedy decoding.
+        Called by autograder as model.infer(sentence).
         """
-        raise NotImplementedError(
-            "Use greedy_decode from train.py with tokenized input and vocab mappings."
-        )
+        import spacy
+
+        if self.src_vocab is None or self.tgt_itos is None:
+            raise ValueError(
+                "Vocab not found in checkpoint. Save src_vocab and tgt_itos inside checkpoint."
+            )
+
+        device = next(self.parameters()).device
+
+        spacy_de = spacy.load("de_core_news_sm")
+
+        unk_idx = 0
+        pad_idx = 1
+        sos_idx = 2
+        eos_idx = 3
+
+        tokens = [tok.text.lower() for tok in spacy_de.tokenizer(src_sentence)]
+
+        src_indices = [sos_idx]
+        src_indices += [self.src_vocab.get(tok, unk_idx) for tok in tokens]
+        src_indices += [eos_idx]
+
+        src = torch.tensor(src_indices, dtype=torch.long, device=device).unsqueeze(0)
+        src_mask = make_src_mask(src, pad_idx=pad_idx).to(device)
+
+        self.eval()
+
+        with torch.no_grad():
+            memory = self.encode(src, src_mask)
+
+            ys = torch.ones(1, 1, dtype=torch.long, device=device).fill_(sos_idx)
+
+            for _ in range(100 - 1):
+                tgt_mask = make_tgt_mask(ys, pad_idx=pad_idx).to(device)
+                logits = self.decode(memory, src_mask, ys, tgt_mask)
+
+                next_token = torch.argmax(logits[:, -1, :], dim=-1).item()
+                ys = torch.cat(
+                    [ys, torch.tensor([[next_token]], dtype=torch.long, device=device)],
+                    dim=1,
+                )
+
+                if next_token == eos_idx:
+                    break
+
+        output_tokens = []
+
+        for idx in ys.squeeze(0).tolist():
+            if idx in [pad_idx, sos_idx]:
+                continue
+            if idx == eos_idx:
+                break
+
+            if isinstance(self.tgt_itos, dict):
+                token = self.tgt_itos.get(idx, "<unk>")
+            else:
+                token = self.tgt_itos[idx]
+
+            output_tokens.append(token)
+
+        return " ".join(output_tokens)
