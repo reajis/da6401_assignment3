@@ -2,6 +2,8 @@
 model.py — Transformer Architecture
 DA6401 Assignment 3: "Attention Is All You Need"
 """
+import os
+import gdown
 
 import math
 import copy
@@ -366,11 +368,19 @@ class Transformer(nn.Module):
 
         checkpoint = None
 
-        # If called as Transformer(), try loading checkpoint first.
+        # If called as Transformer(), download/load checkpoint first.
         if src_vocab_size is None or tgt_vocab_size is None:
             if checkpoint_path is None:
                 raise ValueError(
                     "src_vocab_size and tgt_vocab_size are required unless checkpoint_path is provided."
+                )
+
+            # DOWNLOAD checkpoint.pt if it is not already present
+            if not os.path.exists(checkpoint_path):
+                gdown.download(
+                    id="10hUsOjjzqWutrHBhXjIrl4S5wu6IkLsf",
+                    output=checkpoint_path,
+                    quiet=False,
                 )
 
             checkpoint = torch.load(checkpoint_path, map_location="cpu")
@@ -412,11 +422,9 @@ class Transformer(nn.Module):
         self.src_itos = None
         self.tgt_itos = None
 
-        if checkpoint is None and checkpoint_path is not None:
-            try:
-                checkpoint = torch.load(checkpoint_path, map_location="cpu")
-            except FileNotFoundError:
-                checkpoint = None
+        # If model was created with explicit vocab sizes but checkpoint exists, optionally load it.
+        if checkpoint is None and checkpoint_path is not None and os.path.exists(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         if checkpoint is not None:
             self.load_state_dict(checkpoint["model_state_dict"])
@@ -425,16 +433,15 @@ class Transformer(nn.Module):
             self.tgt_vocab = checkpoint.get("tgt_vocab", None)
             self.src_itos = checkpoint.get("src_itos", None)
             self.tgt_itos = checkpoint.get("tgt_itos", None)
+        def _reset_parameters(self) -> None:
+            """
+            Xavier initialization, commonly used for Transformer weights.
+            """
+            for p in self.parameters():
+                if p.dim() > 1:
+                    nn.init.xavier_uniform_(p)
 
-    def _reset_parameters(self) -> None:
-        """
-        Xavier initialization, commonly used for Transformer weights.
-        """
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
-    # ── AUTOGRADER HOOKS ──
+        # ── AUTOGRADER HOOKS ──
 
     def encode(
         self,
