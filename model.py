@@ -433,13 +433,13 @@ class Transformer(nn.Module):
             self.tgt_vocab = checkpoint.get("tgt_vocab", None)
             self.src_itos = checkpoint.get("src_itos", None)
             self.tgt_itos = checkpoint.get("tgt_itos", None)
-        def _reset_parameters(self) -> None:
-            """
-            Xavier initialization, commonly used for Transformer weights.
-            """
-            for p in self.parameters():
-                if p.dim() > 1:
-                    nn.init.xavier_uniform_(p)
+    def _reset_parameters(self) -> None:
+        """
+        Xavier initialization, commonly used for Transformer weights.
+        """
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
         # ── AUTOGRADER HOOKS ──
 
