@@ -1,7 +1,8 @@
 # DA6401 - Assignment 3: Implementing the Transformer for Machine Translation
 
 DA6401 - Assignment 3: Implementing the Transformer for Machine Translation
-/WandB report link -https://api.wandb.ai/links/me21b160-iitm/flslu3zz
+
+WandB report link -https://api.wandb.ai/links/me21b160-iitm/flslu3zz
 
 GitHub repo - https://github.com/reajis/da6401_assignment3
 
