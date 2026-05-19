@@ -26,13 +26,6 @@ class Multi30kDataset(Dataset):
                 "Missing spaCy German model. Run: python -m spacy download de_core_news_sm"
             ) from exc
 
-        try:
-            self.spacy_en = spacy.load("en_core_web_sm")
-        except OSError as exc:
-            raise OSError(
-                "Missing spaCy English model. Run: python -m spacy download en_core_web_sm"
-            ) from exc
-
         self.special_tokens = ["<unk>", "<pad>", "<sos>", "<eos>"]
         self.unk_idx = 0
         self.pad_idx = 1

@@ -498,8 +498,11 @@ class Transformer(nn.Module):
 
         device = next(self.parameters()).device
 
-        spacy_de = spacy.load("de_core_news_sm")
-
+        try:
+            spacy_de = spacy.load("de_core_news_sm")
+        except OSError:
+            spacy_de = spacy.blank("de")
+            
         unk_idx = 0
         pad_idx = 1
         sos_idx = 2
